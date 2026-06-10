@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CAD Tool v2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#e8e8e8;display:flex;align-items:center;justify-content:center;min-height:100vh}
+
+#app{display:flex;flex-direction:column;width:980px;height:640px;border:1px solid #ccc;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12)}
+
+/* ── Top bar ── */
+#topbar{height:44px;min-height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid #e0e0e0;background:#fafafa}
+#topbar .tb-group{display:flex;align-items:center;gap:4px;padding-right:10px;border-right:1px solid #e0e0e0;margin-right:4px}
+#topbar .tb-group:last-child{border-right:none}
+.shape-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid transparent;border-radius:6px;cursor:pointer;background:transparent;font-size:15px;color:#444;transition:background 0.12s,border-color 0.12s}
+.shape-btn:hover{background:#f0f0f0;border-color:#ddd}
+.shape-btn.active{background:#EBF3FF;border-color:#378ADD;color:#1a6abf}
+.tb-label{font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.05em;margin-right:2px}
+
+/* ── Unit selector ── */
+#unit-wrap{display:flex;align-items:center;gap:6px;margin-left:auto}
+#unit-wrap label{font-size:12px;color:#666}
+#unit-sel{padding:4px 8px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#333;cursor:pointer}
+#scale-wrap{display:flex;align-items:center;gap:5px}
+#scale-wrap label{font-size:12px;color:#666}
+#scale-input{width:56px;padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:6px;text-align:center}
+
+/* ── Main area ── */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* ── Sidebar ── */
+#sidebar{width:200px;min-width:200px;border-right:1px solid #eee;display:flex;flex-direction:column;overflow-y:auto;background:#fff}
+.panel{padding:10px 12px;border-bottom:1px solid #eee}
+.panel-title{font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px}
+.row{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;gap:6px}
+.row label{font-size:12px;color:#555;white-space:nowrap}
+.row input[type=range]{flex:1;accent-color:#378ADD}
+.row span{font-size:12px;font-weight:500;min-width:28px;text-align:right;color:#222}
+.seg{display:flex;border:1px solid #ddd;border-radius:6px;overflow:hidden}
+.seg button{flex:1;padding:5px 0;font-size:12px;border:none;background:transparent;color:#888;cursor:pointer;transition:background 0.12s}
+.seg button.active{background:#EBF3FF;color:#1a6abf;font-weight:600}
+.color-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.swatch{width:100%;aspect-ratio:1;border-radius:3px;border:2px solid transparent;cursor:pointer;transition:border-color 0.1s}
+.swatch.active{border-color:#111}
+input[type=color]{width:32px;height:26px;border:1px solid #ddd;border-radius:4px;cursor:pointer;padding:1px}
+.saved-list{max-height:120px;overflow-y:auto}
+.saved-item{display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px solid #eee;cursor:pointer}
+.saved-item:last-child{border-bottom:none}
+.saved-item:hover{background:#fafafa}
+.saved-thumb{width:20px;height:20px;flex-shrink:0}
+.saved-label{font-size:11px;color:#666;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.saved-del{font-size:15px;color:#bbb;background:none;border:none;cursor:pointer;padding:0 2px;line-height:1}
+.saved-del:hover{color:#c0392b}
+.empty-msg{font-size:11px;color:#ccc;padding:3px 0}
+
+/* ── Canvas wrap (holds rulers + canvas) ── */
+#canvas-outer{flex:1;position:relative;display:flex;flex-direction:column;overflow:hidden}
+#ruler-top{height:24px;display:flex}
+#ruler-corner{width:24px;min-width:24px;height:24px;background:#f5f5f5;border-right:1px solid #ddd;border-bottom:1px solid #ddd}
+#ruler-h-wrap{flex:1;overflow:hidden;position:relative;border-bottom:1px solid #ddd}
+#ruler-h{display:block;background:#f5f5f5}
+#canvas-row{flex:1;display:flex;overflow:hidden}
+#ruler-v-wrap{width:24px;min-width:24px;overflow:hidden;position:relative;border-right:1px solid #ddd}
+#ruler-v{display:block;background:#f5f5f5}
+#canvas-wrap{flex:1;position:relative;background:#fff;overflow:hidden}
+canvas{display:block}
+
+/* ── Floating toolbar ── */
+#toolbar{
+  position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+  display:flex;gap:5px;
+  background:rgba(255,255,255,0.93);
+  border:1px solid #ddd;border-radius:10px;
+  padding:5px 10px;
+  backdrop-filter:blur(6px);
+}
+#toolbar button{padding:5px 12px;font-size:12px;border:1px solid #ddd;border-radius:6px;background:transparent;color:#333;cursor:pointer;transition:background 0.12s}
+#toolbar button:hover{background:rgba(0,0,0,0.05)}
+#toolbar button.danger{color:#c0392b;border-color:#f5c6c6}
+#toolbar button.danger:hover{background:#fff0f0}
+#status{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-size:11px;color:#888;background:rgba(255,255,255,0.9);padding:3px 10px;border-radius:16px;border:1px solid #eee;white-space:nowrap;backdrop-filter:blur(4px);pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Top toolbar ── -->
+  <div id="topbar">
+    <span class="tb-label">Shapes</span>
+    <div class="tb-group" id="shape-btns">
+      <button class="shape-btn active" data-shape="triangle" title="Triangle">△</button>
+      <button class="shape-btn" data-shape="line"     title="Line">╱</button>
+      <button class="shape-btn" data-shape="curve"    title="Curve">⌒</button>
+      <button class="shape-btn" data-shape="rect"     title="Rectangle">▭</button>
+      <button class="shape-btn" data-shape="square"   title="Square">□</button>
+      <button class="shape-btn" data-shape="circle"   title="Circle">○</button>
+      <button class="shape-btn" data-shape="ellipse"  title="Ellipse">⬭</button>
+      <button class="shape-btn" data-shape="pentagon" title="Pentagon">⬠</button>
+      <button class="shape-btn" data-shape="hexagon"  title="Hexagon">⬡</button>
+      <button class="shape-btn" data-shape="arrow"    title="Arrow">→</button>
+      <button class="shape-btn" data-shape="star"     title="Star">★</button>
+    </div>
+
+    <div id="unit-wrap">
+      <label>Unit</label>
+      <select id="unit-sel">
+        <option value="px">Pixels (px)</option>
+        <option value="mm">Millimetres (mm)</option>
+        <option value="cm" selected>Centimetres (cm)</option>
+        <option value="in">Inches (in)</option>
+        <option value="ft">Feet (ft)</option>
+        <option value="m">Metres (m)</option>
+      </select>
+      <div id="scale-wrap">
+        <label>px per unit</label>
+        <input type="number" id="scale-input" value="37.8" min="1" max="1000" step="0.1">
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main ── -->
+  <div id="main">
+
+    <!-- sidebar -->
+    <div id="sidebar">
+      <div class="panel">
+        <div class="panel-title">Style</div>
+        <div class="row"><label>Fill</label></div>
+        <div class="seg" id="fill-seg">
+          <button class="active" data-val="filled"  onclick="setFill('filled',this)">Filled</button>
+          <button              data-val="hollow" onclick="setFill('hollow',this)">Hollow</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Colour</div>
+        <div class="color-grid" id="color-grid"></div>
+        <div class="row" style="margin-top:8px">
+          <label>Custom</label>
+          <input type="color" id="custom-color" value="#378ADD">
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Size</div>
+        <div class="row">
+          <label>Scale</label>
+          <input type="range" id="size-slider" min="20" max="240" step="1" value="80">
+          <span id="size-val">80</span>
+        </div>
+        <div class="row">
+          <label>Stroke</label>
+          <input type="range" id="stroke-slider" min="1" max="14" step="1" value="2">
+          <span id="stroke-val">2</span>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:1">
+        <div class="panel-title">Saved</div>
+        <div class="saved-list" id="saved-list"><p class="empty-msg">Nothing saved yet.</p></div>
+      </div>
+    </div>
+
+    <!-- canvas area -->
+    <div id="canvas-outer">
+      <div id="ruler-top">
+        <div id="ruler-corner"></div>
+        <div id="ruler-h-wrap"><canvas id="ruler-h" height="24"></canvas></div>
+      </div>
+      <div id="canvas-row">
+        <div id="ruler-v-wrap"><canvas id="ruler-v" width="24"></canvas></div>
+        <div id="canvas-wrap">
+          <canvas id="c"></canvas>
+          <div id="toolbar">
+            <button onclick="saveShape()">💾 Save</button>
+            <button onclick="clearCanvas()">Clear</button>
+            <button class="danger" onclick="deleteSelected()">🗑 Delete</button>
+          </div>
+          <div id="status">Choose a shape above, then click to place</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const cWrap  = document.getElementById('canvas-wrap');
+const rH     = document.getElementById('ruler-h');
+const rHWrap = document.getElementById('ruler-h-wrap');
+const rV     = document.getElementById('ruler-v');
+const rVWrap = document.getElementById('ruler-v-wrap');
+const ctxH   = rH.getContext('2d');
+const ctxV   = rV.getContext('2d');
+
+let S = {
+  shape:'triangle', color:'#378ADD', fillType:'filled',
+  size:80, stroke:2,
+  shapes:[], selected:null,
+  dragging:false, dragOffX:0, dragOffY:0,
+  cursor:null,
+  // for line/curve: two-click placement
+  placing:false, placeX:0, placeY:0,
+  unit:'cm', pxPerUnit:37.8
+};
+
+// ─────────────────────────────────────────────
+// Units
+// ─────────────────────────────────────────────
+const DEFAULT_PX = {px:1, mm:3.78, cm:37.8, in:96, ft:1152, m:3780};
+document.getElementById('unit-sel').addEventListener('change', e=>{
+  S.unit = e.target.value;
+  document.getElementById('scale-input').value = DEFAULT_PX[S.unit];
+  S.pxPerUnit = DEFAULT_PX[S.unit];
+  drawRulers();
+});
+document.getElementById('scale-input').addEventListener('input', e=>{
+  S.pxPerUnit = Math.max(1, parseFloat(e.target.value)||1);
+  drawRulers();
+});
+
+// ─────────────────────────────────────────────
+// Palette
+// ─────────────────────────────────────────────
+const PALETTE=['#E24B4A','#D85A30','#EF9F27','#639922','#1D9E75','#378ADD','#7F77DD','#D4537E','#888780','#2C2C2A','#185FA5','#3C3489'];
+function initPalette(){
+  const g=document.getElementById('color-grid'); g.innerHTML='';
+  PALETTE.forEach(c=>{
+    const sw=document.createElement('div');
+    sw.className='swatch'+(c===S.color?' active':'');
+    sw.style.background=c;
+    sw.onclick=()=>{S.color=c;document.getElementById('custom-color').value=c;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));sw.classList.add('active');applyToSelected();};
+    g.appendChild(sw);
+  });
+}
+initPalette();
+document.getElementById('custom-color').addEventListener('input',e=>{S.color=e.target.value;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));applyToSelected();});
+
+// ─────────────────────────────────────────────
+// Shape selector
+// ─────────────────────────────────────────────
+document.getElementById('shape-btns').addEventListener('click',e=>{
+  const btn=e.target.closest('.shape-btn'); if(!btn) return;
+  S.shape=btn.dataset.shape; S.placing=false; S.cursor=null;
+  document.querySelectorAll('.shape-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  redraw();
+});
+
+// ─────────────────────────────────────────────
+// Fill / size controls
+// ─────────────────────────────────────────────
+function setFill(v,btn){S.fillType=v;document.querySelectorAll('#fill-seg button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');applyToSelected();}
+document.getElementById('size-slider').addEventListener('input',e=>{S.size=+e.target.value;document.getElementById('size-val').textContent=S.size;if(S.selected!==null){S.shapes[S.selected].size=S.size;}redraw();});
+document.getElementById('stroke-slider').addEventListener('input',e=>{S.stroke=+e.target.value;document.getElementById('stroke-val').textContent=S.stroke;if(S.selected!==null){S.shapes[S.selected].stroke=S.stroke;}redraw();});
+
+// ─────────────────────────────────────────────
+// Resize canvas
+// ─────────────────────────────────────────────
+function resize(){
+  canvas.width=cWrap.clientWidth; canvas.height=cWrap.clientHeight;
+  rH.width=rHWrap.clientWidth;
+  rV.height=rVWrap.clientHeight;
+  drawRulers(); redraw();
+}
+new ResizeObserver(resize).observe(cWrap);
+resize();
+
+// ─────────────────────────────────────────────
+// Rulers
+// ─────────────────────────────────────────────
+function drawRulers(){
+  const ppu=S.pxPerUnit, unit=S.unit;
+  // horizontal
+  const W=rH.width, H2=24;
+  ctxH.clearRect(0,0,W,H2);
+  ctxH.fillStyle='#f5f5f5'; ctxH.fillRect(0,0,W,H2);
+  ctxH.strokeStyle='#bbb'; ctxH.lineWidth=0.5;
+  ctxH.beginPath(); ctxH.moveTo(0,H2-0.5); ctxH.lineTo(W,H2-0.5); ctxH.stroke();
+  ctxH.fillStyle='#888'; ctxH.font='9px sans-serif'; ctxH.textAlign='center';
+  const stepPx=chooseStep(ppu);
+  for(let px=0;px<W;px+=stepPx){
+    const val=(px/ppu).toFixed(val2dp(ppu));
+    ctxH.beginPath(); ctxH.moveTo(px,H2-7); ctxH.lineTo(px,H2); ctxH.strokeStyle='#bbb'; ctxH.stroke();
+    if(px>0) ctxH.fillText(val,px,H2-9);
+  }
+  // vertical
+  const VH=rV.height, VW=24;
+  ctxV.clearRect(0,0,VW,VH);
+  ctxV.fillStyle='#f5f5f5'; ctxV.fillRect(0,0,VW,VH);
+  ctxV.strokeStyle='#bbb'; ctxV.lineWidth=0.5;
+  ctxV.beginPath(); ctxV.moveTo(VW-0.5,0); ctxV.lineTo(VW-0.5,VH); ctxV.stroke();
+  ctxV.fillStyle='#888'; ctxV.font='9px sans-serif'; ctxV.textAlign='right';
+  for(let py=0;py<VH;py+=stepPx){
+    const val=(py/ppu).toFixed(val2dp(ppu));
+    ctxV.beginPath(); ctxV.moveTo(VW-7,py); ctxV.lineTo(VW,py); ctxV.strokeStyle='#bbb'; ctxV.stroke();
+    if(py>0){
+      ctxV.save(); ctxV.translate(VW-10,py); ctxV.rotate(-Math.PI/2);
+      ctxV.fillText(val,0,0); ctxV.restore();
+    }
+  }
+}
+function chooseStep(ppu){
+  // pick a round step so ticks aren't too dense or sparse
+  const candidates=[0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000];
+  for(const c of candidates){ if(c*ppu>=40) return c*ppu; }
+  return 500*ppu;
+}
+function val2dp(ppu){ return ppu>=10?0:ppu>=1?1:2; }
+
+// ─────────────────────────────────────────────
+// Shape geometry helpers
+// ─────────────────────────────────────────────
+function triPts(x,y,s){const h=s*0.866;return[[x,y-s*0.6],[x-s/2,y+h*0.4],[x+s/2,y+h*0.4]];}
+function polyPts(x,y,s,n,offset=0){const pts=[];for(let i=0;i<n;i++){const a=offset+(2*Math.PI*i/n)-Math.PI/2;pts.push([x+s*Math.cos(a),y+s*Math.sin(a)]);}return pts;}
+function starPts(x,y,s){const pts=[];for(let i=0;i<10;i++){const a=(Math.PI*i/5)-Math.PI/2;const r=i%2===0?s:s*0.42;pts.push([x+r*Math.cos(a),y+r*Math.sin(a)]);}return pts;}
+
+// ─────────────────────────────────────────────
+// Draw a single shape
+// ─────────────────────────────────────────────
+function drawShape(sh, alpha=1){
+  const {type,x,y,x2,y2,size:s,color,fillType,stroke}=sh;
+  ctx.save(); ctx.globalAlpha=alpha;
+  ctx.strokeStyle=color; ctx.lineWidth=stroke;
+  if(fillType==='filled') ctx.fillStyle=color; else ctx.fillStyle='transparent';
+
+  if(type==='line'){
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x2??x+s,y2??y); ctx.stroke();
+  } else if(type==='curve'){
+    const cx1=x+(x2??x+s)*0.5, cy1=y-s*0.6;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(cx1,cy1,x2??x+s,y2??y); ctx.stroke();
+  } else if(type==='arrow'){
+    const tx=x2??x+s, ty=y2??y;
+    const angle=Math.atan2(ty-y,tx-x);
+    const hw=stroke*4+6;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(tx,ty); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(tx,ty);
+    ctx.lineTo(tx-hw*Math.cos(angle-0.4),ty-hw*Math.sin(angle-0.4));
+    ctx.lineTo(tx-hw*Math.cos(angle+0.4),ty-hw*Math.sin(angle+0.4));
+    ctx.closePath(); ctx.fillStyle=color; ctx.fill();
+  } else if(type==='rect'){
+    ctx.beginPath(); ctx.rect(x-s,y-s*0.6,s*2,s*1.2);
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  } else if(type==='square'){
+    ctx.beginPath(); ctx.rect(x-s*0.7,y-s*0.7,s*1.4,s*1.4);
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  } else if(type==='circle'){
+    ctx.beginPath(); ctx.arc(x,y,s*0.7,0,Math.PI*2);
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  } else if(type==='ellipse'){
+    ctx.beginPath(); ctx.ellipse(x,y,s,s*0.55,0,0,Math.PI*2);
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  } else if(type==='triangle'){
+    const pts=triPts(x,y,s);
+    ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); pts.slice(1).forEach(p=>ctx.lineTo(p[0],p[1])); ctx.closePath();
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  } else if(type==='pentagon'){
+    const pts=polyPts(x,y,s*0.75,5);
+    ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); pts.slice(1).forEach(p=>ctx.lineTo(p[0],p[1])); ctx.closePath();
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  } else if(type==='hexagon'){
+    const pts=polyPts(x,y,s*0.75,6,Math.PI/6);
+    ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); pts.slice(1).forEach(p=>ctx.lineTo(p[0],p[1])); ctx.closePath();
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  } else if(type==='star'){
+    const pts=starPts(x,y,s*0.75);
+    ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); pts.slice(1).forEach(p=>ctx.lineTo(p[0],p[1])); ctx.closePath();
+    if(fillType==='filled') ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSelection(sh){
+  const {type,x,y,x2,y2,size:s}=sh;
+  ctx.save(); ctx.strokeStyle='#378ADD'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+  let bx,by,bw,bh;
+  if(type==='line'||type==='curve'||type==='arrow'){
+    const tx=x2??x+s, ty=y2??y;
+    bx=Math.min(x,tx)-8; by=Math.min(y,ty)-8;
+    bw=Math.abs(tx-x)+16; bh=Math.abs(ty-y)+16;
+  } else if(type==='rect'){bx=x-s-4;by=y-s*0.6-4;bw=s*2+8;bh=s*1.2+8;}
+  else if(type==='square'){bx=x-s*0.7-4;by=y-s*0.7-4;bw=s*1.4+8;bh=s*1.4+8;}
+  else if(type==='circle'){bx=x-s*0.7-4;by=y-s*0.7-4;bw=s*1.4+8;bh=s*1.4+8;}
+  else if(type==='ellipse'){bx=x-s-4;by=y-s*0.55-4;bw=s*2+8;bh=s*1.1+8;}
+  else{bx=x-s-4;by=y-s-4;bw=s*2+8;bh=s*2+8;}
+  ctx.strokeRect(bx,by,bw,bh);
+  ctx.setLineDash([]); ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+// Redraw
+// ─────────────────────────────────────────────
+function redraw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // grid dots
+  ctx.fillStyle='#e8e8e8';
+  const step=Math.max(20,chooseStep(S.pxPerUnit));
+  for(let x=0;x<canvas.width;x+=step) for(let y=0;y<canvas.height;y+=step){ctx.beginPath();ctx.arc(x,y,0.8,0,Math.PI*2);ctx.fill();}
+
+  S.shapes.forEach((sh,i)=>{drawShape(sh);if(i===S.selected)drawSelection(sh);});
+  if(S.cursor) drawShape({...S.cursor,type:S.shape,color:S.color,fillType:S.fillType,stroke:S.stroke,size:S.size},0.4);
+}
+
+// ─────────────────────────────────────────────
+// Hit test
+// ─────────────────────────────────────────────
+function hitTest(mx,my,sh){
+  const {type,x,y,x2,y2,size:s}=sh;
+  const pad=10;
+  if(type==='line'||type==='curve'||type==='arrow'){
+    const tx=x2??x+s, ty=y2??y;
+    // distance from point to segment
+    const dx=tx-x, dy=ty-y, len2=dx*dx+dy*dy;
+    const t=len2?Math.max(0,Math.min(1,((mx-x)*dx+(my-y)*dy)/len2)):0;
+    const px2=x+t*dx-mx, py2=y+t*dy-my;
+    return px2*px2+py2*py2<(pad+sh.stroke*2)**2;
+  }
+  if(type==='circle'){const r=s*0.7;return(mx-x)**2+(my-y)**2<=(r+pad)**2;}
+  if(type==='ellipse'){const a=s+pad,b=s*0.55+pad;return((mx-x)/a)**2+((my-y)/b)**2<=1;}
+  if(type==='rect'){return mx>=x-s-pad&&mx<=x+s+pad&&my>=y-s*0.6-pad&&my<=y+s*0.6+pad;}
+  if(type==='square'){const h=s*0.7+pad;return mx>=x-h&&mx<=x+h&&my>=y-h&&my<=y+h;}
+  // polygon fallback: bounding box
+  return mx>=x-s-pad&&mx<=x+s+pad&&my>=y-s-pad&&my<=y+s+pad;
+}
+
+// ─────────────────────────────────────────────
+// Mouse
+// ─────────────────────────────────────────────
+const needsTwoClicks=t=>['line','curve','arrow'].includes(t);
+
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+
+  if(S.dragging&&S.selected!==null){
+    const sh=S.shapes[S.selected];
+    if(needsTwoClicks(sh.type)){
+      const dx=mx-S.dragOffX, dy=my-S.dragOffY;
+      const ox=sh.x, oy=sh.y;
+      sh.x=mx-S.dragOffX2; sh.y=my-S.dragOffY2;
+      sh.x2=(sh.x2??ox+sh.size)+(sh.x-ox); sh.y2=(sh.y2??oy)+(sh.y-oy);
+    } else {sh.x=mx-S.dragOffX; sh.y=my-S.dragOffY;}
+    redraw(); return;
+  }
+
+  // during two-click placement preview
+  if(S.placing&&needsTwoClicks(S.shape)){
+    S.cursor={x:S.placeX,y:S.placeY,x2:mx,y2:my,type:S.shape,color:S.color,fillType:S.fillType,stroke:S.stroke,size:S.size};
+    redraw(); return;
+  }
+
+  let hit=false;
+  for(let i=S.shapes.length-1;i>=0;i--){if(hitTest(mx,my,S.shapes[i])){canvas.style.cursor='move';hit=true;break;}}
+  if(!hit){canvas.style.cursor='crosshair';S.cursor={x:mx,y:my,type:S.shape,color:S.color,fillType:S.fillType,stroke:S.stroke,size:S.size};}
+  else S.cursor=null;
+  redraw();
+
+  // ruler crosshair
+  const ppu=S.pxPerUnit;
+  const ux=(mx/ppu).toFixed(2), uy=(my/ppu).toFixed(2);
+  setStatus(`${ux} × ${uy} ${S.unit}`);
+});
+
+canvas.addEventListener('mouseleave',()=>{S.cursor=null;if(!S.placing) redraw();setStatus('Choose a shape above, then click to place');});
+
+canvas.addEventListener('mousedown',e=>{
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+
+  // check hit on existing
+  for(let i=S.shapes.length-1;i>=0;i--){
+    if(hitTest(mx,my,S.shapes[i])){
+      S.selected=i; S.dragging=true;
+      const sh=S.shapes[i];
+      S.dragOffX=mx-sh.x; S.dragOffY=my-sh.y;
+      S.dragOffX2=mx-sh.x; S.dragOffY2=my-sh.y;
+      syncSidebar(); redraw(); return;
+    }
+  }
+
+  if(needsTwoClicks(S.shape)){
+    if(!S.placing){
+      S.placing=true; S.placeX=mx; S.placeY=my;
+      setStatus('Click again to set the endpoint');
+    } else {
+      S.placing=false; S.cursor=null;
+      S.shapes.push({type:S.shape,x:S.placeX,y:S.placeY,x2:mx,y2:my,size:S.size,color:S.color,fillType:S.fillType,stroke:S.stroke,saved:false});
+      S.selected=S.shapes.length-1;
+      setStatus('Shape placed — click Save to keep it');
+      syncSidebar(); redraw();
+    }
+  } else {
+    S.shapes.push({type:S.shape,x:mx,y:my,size:S.size,color:S.color,fillType:S.fillType,stroke:S.stroke,saved:false});
+    S.selected=S.shapes.length-1; S.cursor=null;
+    setStatus('Shape placed — click Save to keep it');
+    syncSidebar(); redraw();
+  }
+});
+
+canvas.addEventListener('mouseup',()=>{S.dragging=false;});
+
+// ─────────────────────────────────────────────
+// Sync sidebar ↔ selected shape
+// ─────────────────────────────────────────────
+function syncSidebar(){
+  if(S.selected===null) return;
+  const sh=S.shapes[S.selected];
+  document.getElementById('size-slider').value=sh.size; document.getElementById('size-val').textContent=sh.size;
+  document.getElementById('stroke-slider').value=sh.stroke; document.getElementById('stroke-val').textContent=sh.stroke;
+  S.color=sh.color; S.fillType=sh.fillType; S.size=sh.size; S.stroke=sh.stroke;
+  document.querySelectorAll('#fill-seg button').forEach(b=>b.classList.toggle('active',b.dataset.val===sh.fillType));
+  document.getElementById('custom-color').value=sh.color;
+  document.querySelectorAll('.shape-btn').forEach(b=>b.classList.toggle('active',b.dataset.shape===sh.type));
+  S.shape=sh.type;
+}
+
+function applyToSelected(){
+  if(S.selected===null) return;
+  S.shapes[S.selected].color=S.color;
+  S.shapes[S.selected].fillType=S.fillType;
+  redraw();
+}
+
+// ─────────────────────────────────────────────
+// Toolbar actions
+// ─────────────────────────────────────────────
+function saveShape(){
+  if(S.selected===null){setStatus('Select a shape first');return;}
+  S.shapes[S.selected].saved=true; renderSavedList(); setStatus('Shape saved!');
+}
+function deleteSelected(){
+  if(S.selected===null){setStatus('Nothing selected');return;}
+  S.shapes.splice(S.selected,1); S.selected=null; renderSavedList(); setStatus('Shape deleted'); redraw();
+}
+function clearCanvas(){S.shapes=[];S.selected=null;S.cursor=null;S.placing=false;renderSavedList();setStatus('Canvas cleared');redraw();}
+
+// ─────────────────────────────────────────────
+// Saved list
+// ─────────────────────────────────────────────
+const SHAPE_LABELS={triangle:'Triangle',line:'Line',curve:'Curve',rect:'Rectangle',square:'Square',circle:'Circle',ellipse:'Ellipse',pentagon:'Pentagon',hexagon:'Hexagon',arrow:'Arrow',star:'Star'};
+
+function renderSavedList(){
+  const el=document.getElementById('saved-list');
+  if(!S.shapes.some(s=>s.saved)){el.innerHTML='<p class="empty-msg">Nothing saved yet.</p>';return;}
+  el.innerHTML='';
+  S.shapes.forEach((sh,i)=>{
+    if(!sh.saved) return;
+    const row=document.createElement('div'); row.className='saved-item';
+    const tc=document.createElement('canvas'); tc.className='saved-thumb'; tc.width=20; tc.height=20;
+    // mini thumbnail
+    const tx=tc.getContext('2d');
+    tx.strokeStyle=sh.color; tx.lineWidth=1.5;
+    if(sh.fillType==='filled') tx.fillStyle=sh.color; else tx.fillStyle='transparent';
+    const tp=sh.type;
+    if(tp==='circle'||tp==='square'||tp==='ellipse'||tp==='triangle'||tp==='pentagon'||tp==='hexagon'||tp==='star'||tp==='rect'){
+      const fake={...sh,x:10,y:10,size:8};
+      // simple draw on mini ctx
+      tx.beginPath();
+      if(tp==='circle'){tx.arc(10,10,7,0,Math.PI*2);}
+      else if(tp==='rect'){tx.rect(2,4,16,12);}
+      else if(tp==='square'){tx.rect(3,3,14,14);}
+      else{tx.rect(3,3,14,14);}
+      if(sh.fillType==='filled') tx.fill(); tx.stroke();
+    } else {tx.beginPath();tx.moveTo(3,17);tx.lineTo(17,3);tx.stroke();}
+    const lbl=document.createElement('span'); lbl.className='saved-label'; lbl.textContent=`${SHAPE_LABELS[sh.type]||sh.type} ${i+1}`;
+    const del=document.createElement('button'); del.className='saved-del'; del.innerHTML='×';
+    del.onclick=ev=>{ev.stopPropagation();S.shapes.splice(i,1);if(S.selected===i)S.selected=null;else if(S.selected>i)S.selected--;renderSavedList();redraw();};
+    row.onclick=()=>{S.selected=i;syncSidebar();redraw();};
+    row.appendChild(tc); row.appendChild(lbl); row.appendChild(del); el.appendChild(row);
+  });
+}
+
+function setStatus(msg){document.getElementById('status').textContent=msg;}
+</script>
+</body>
+</html>
