@@ -1,0 +1,26 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# VS Code Settings
+.vscode/
+
+# Logs
+*.log
+
+# Temporary Files
+*.tmp
+*.temp
+
+# Future Node.js Dependencies
+node_modules/
+
+# Build Output
+dist/
+build/
+
+# Environment Variables
+.env
+
+# Cache Files
+.cache/
